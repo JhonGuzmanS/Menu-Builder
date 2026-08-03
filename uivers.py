@@ -1,8 +1,7 @@
-import nicegui as ng
 from nicegui import app, ui, events
-import csv
-import pandas as pd
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
+from io import BytesIO
+from main import create_template_file
 
 # contains info regarding Menu Items
 class MenuItem:
@@ -16,26 +15,46 @@ class MenuItem:
 
     def add_item(self, name_type:str, group:str, category:str, price:int, folder_name:str, print_loc:str):
         item = {
+            'id' : self.count,
             'Menu Item Full Name': name_type,
             'Menu Item Group': group,
             'Menu Item Category': category,
             'Default Price': price,
-            'Belongs To Item Folder': folder_name,
+            'Dine In Price': None,
+            'Bar Price': None,
+            'Pick Up Price': None,
+            'Take Out Price': None,
+            'Delivery Price': None,
+            'Open Price Item': None,
             'POS Orders Print At': print_loc,
+            'Tax 1': False,
+            'Tax 2': False,
+            'Tax 3': False,
+            'This Is A Bar Item': False,
+            'This Is A Weighted Item': False,
+            'Tare': None,
+            'Barcode': None,
+            'Item Folder': False,
+            'Belongs To Item Folder': folder_name,
         }
         self.holder.append(item)
         self.count += 1
         #print(self.holder)
 
+
+    def add_dict(self, data):
+        self.holder.append(data)
+
+
     def delete_item(self, item1):
         self.holder.remove(item1)
         #print(self.holder)
 
-    def update_item(self, id, val):
-        self.holder[id]['Belongs To Item Folder'] = val
-
     def get_rows(self):
         return self.holder
+
+    def get_index(self, item):
+        return self.holder[item]['id'] if item in self.holder else -1
 # ------------------------End of Class MenuItem------------------------------------------------
 
 
@@ -50,11 +69,6 @@ def add_row():
     
 
 # include limit of 32 per unique group / POS default menu setup
-def add_table():
-    add_row()
-    grid.update_rows(table_l.get_rows())
-
-
 def add():
     add_row()
     row = table_l.holder[-1]
@@ -62,30 +76,71 @@ def add():
         grid.options['rowData'].append(row)
     grid.run_grid_method('applyTransaction', {'add': [row]})
     grid.run_grid_method('ensureIndexVisible', len(grid.options['rowData']) - 1)
-    show_items()
 
 
+def add_ids(data):
+    for i, row in enumerate(data):
+        row['id'] = i
+    return data
+
+# create a new excel file, have option to rename/upload to downloads
 async def export():
+    filename = "GO1.xlsx"
+    create_template_file(headerName, ['Menu Item Full Name', 'Menu Item Group', 'Menu Item Category', 'Default Price', 'POS Order Print At'], filename)
     data = await show_grid()
-    wb = load_workbook("output.xlsx")
+    wb = load_workbook(filename)
     ws = wb["Sheet1"]
 
     headers = [cell.value for cell in ws[1]]
+
     for row in data:
         ws.append([row.get(h, None) for h in headers])
-    wb.save("output.xlsx")
+    wb.save(filename)
+    
 
+async def import_data(e):
+    file_bytes = await e.file.read()
+    data = import_xlsx(file_bytes)
+    data = add_ids(data)
+    grid.update()
+    grid.options["rowData"] = data
+    print(data)
+
+
+def import_xlsx(file_bytes, sheet_name=None):
+    wb = load_workbook(BytesIO(file_bytes), data_only=True)
+    ws = wb[sheet_name] if sheet_name else wb.active
+    rows = ws.iter_rows(values_only=True)
+    headers = next(rows)
+    return [dict(zip(headers, row)) for row in rows]
 
 
 async def show_items():
     row = await grid.get_client_data()
     print(row)
 
-
 async def show_grid():
     return await grid.get_client_data()
+    print(row)
 
-     
+async def output_folder():
+    rows = await grid.get_selected_rows()
+    if rows:
+        for row in rows:
+            ui.notify(f"Selected row: {row['id']}")
+            grid.options["rowData"][row['id']]['Belongs To Item Folder'] = folder.value
+    else:
+        ui.notify('No rows selected.')
+    
+    '''
+    
+    if rows:
+        for row in rows:
+            index = table_l.get_index(row['Menu Item Full Name'])
+            if index != -1:
+                grid.options["rowData"][index]['Belongs To Item Folder'] = folder.value
+
+     '''
 #------------------------End of Functions------------------------------------------------
 
 
@@ -129,11 +184,11 @@ rows = []
 #------------------------Start of Page------------------------------------------------
 
 with ui.grid(columns=5): # Menu Item Input
-    it = ui.input(label="Item Type", value="SM", validation={'field required': lambda val: len(val) > 0})
+    it = ui.input(label="Item Name", value="SM", validation={'field required': lambda val: len(val) > 0})
 
-    ip = ui.number(label="Prices", value = 1, validation={'field required': lambda val: val > -1})
+    ip = ui.number(label="Price", value = 1, validation={'field required': lambda val: val > -1})
 
-    fn = ui.input(label='Folder Name', value="Hot Coffee")
+    fn = ui.input(label='Belongs to Item Folder')
 
     ig = ui.input(label='Item Group', value="Coffee", validation={'field required': lambda val: len(val) > 0})
 
@@ -142,17 +197,21 @@ with ui.grid(columns=5): # Menu Item Input
 
 
 ui.button('Add row', icon='add', on_click=add)
+folder = ui.input(label='Folder Name', value="Hot Coffee")
+ui.button('Add folder', icon='add', on_click=output_folder)
 
 grid = ui.aggrid({
     'columnDefs': columns,
     'defaultColDef': {'wrapHeaderText': True,'autoHeaderHeight': True, 'editable': True},
     'rowData': rows,
-    'stopEditingWhenCellsLoseFocus': True
+    'stopEditingWhenCellsLoseFocus': True,
+    'rowSelection': {'mode': 'multiRow'},
 })
 
-ui.button('Export', on_click=export)
+ui.upload(on_upload=lambda e: import_data(e), auto_upload=True)
 ui.button('Terminal print', on_click=show_items)
 ui.button('Show hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, True))
 ui.button('Hide hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, False))
+ui.button('Export to Excel', on_click=lambda e: export())
 
 ui.run()
