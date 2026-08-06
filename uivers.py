@@ -1,13 +1,14 @@
-from nicegui import app, ui, events
-from openpyxl import load_workbook, Workbook
+from nicegui import ui
+from openpyxl import load_workbook
 from io import BytesIO
 from main import create_template_file
 from MenuItem import MenuItem
+from datetime import datetime
 
 
 #------------------------Start of Functions------------------------------------------------
 
-def add_row():
+def add_row(fn, it, ig, ic, ip):
     #ui.label(f"Added: {fn.value + '-' + it.value} | {ip.value} | {fn.value} | {ig.value} | {ic.value}").update()
     if len(fn.value) > 0:
         table_l.add_item(fn.value + ' ' + it.value, ig.value, ic.value, ip.value, fn.value, print_loc='N')
@@ -16,8 +17,8 @@ def add_row():
     
 
 # include limit of 32 per unique group / POS default menu setup
-def add():
-    add_row()
+def add(grid,fn, it, ig, ic, ip):
+    add_row(fn, it, ig, ic, ip)
     row = table_l.holder[-1]
     with grid.props.suspend_updates():
         grid.options['rowData'].append(row)
@@ -31,10 +32,9 @@ def add_ids(data):
     return data
 
 # create a new excel file, have option to rename/upload to downloads
-async def export():
-    filename = "GO1.xlsx"
+async def export(grid, filename = f"Menu_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx"):
     create_template_file(headerName, ['Menu Item Full Name', 'Menu Item Group', 'Menu Item Category', 'Default Price', 'POS Order Print At'], filename)
-    data = await show_grid()
+    data = await show_grid(grid)
     wb = load_workbook(filename)
     ws = wb["Sheet1"]
 
@@ -44,7 +44,7 @@ async def export():
     wb.save(filename)
     
 
-async def import_data(e):
+async def import_data(e, grid):
     file_bytes = await e.file.read()
     data = import_xlsx(file_bytes)
     data = add_ids(data)
@@ -62,15 +62,15 @@ def import_xlsx(file_bytes, sheet_name=None):
     return [dict(zip(headers, row)) for row in rows]
 
 
-async def show_items():
+async def show_items(grid):
     row = await grid.get_client_data()
     print(row)
 
-async def show_grid():
+async def show_grid(grid):
     return await grid.get_client_data()
     print(row)
 
-async def output_folder():
+async def output_folder(folder, grid):
     rows = await grid.get_selected_rows()
     if rows:
         for row in rows:
@@ -93,7 +93,7 @@ async def output_folder():
 
 
 # Global variables go here
-table_l = MenuItem()    # MenuItem may not be needed
+table_l = MenuItem()    # MenuItem may not be needed  / holds unique ID
 printer_options = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'B', 'N']
 
 columns = [
@@ -106,13 +106,13 @@ columns = [
     {'field': 'Pick Up Price', 'hide': True, 'cellEditor': 'agNumberCellEditor','cellEditorParams': {'min': 0, 'max': 10000, 'precision': 2}},
     {'field': 'Take Out Price', 'hide': True, 'cellEditor': 'agNumberCellEditor','cellEditorParams': {'min': 0, 'max': 10000, 'precision': 2}},
     {'field': 'Delivery Price', 'hide': True, 'cellEditor': 'agNumberCellEditor','cellEditorParams': {'min': 0, 'max': 10000, 'precision': 2}},
-    {'field': 'Open Price Item', 'hide': True},
+    {'field': 'Open Price Item', 'hide': True, 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
     {'field': 'POS Orders Print At', 'cellEditor': 'agSelectCellEditor', 'cellEditorParams':{'values': printer_options}},
     {'field': 'Tax 1', 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
     {'field': 'Tax 2', 'hide': True, 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
     {'field': 'Tax 3', 'hide': True, 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
-    {'field': 'This Is A Bar Item', 'hide': True},
-    {'field': 'This Is A Weighted Item', 'hide': True},
+    {'field': 'This Is A Bar Item', 'hide': True, 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
+    {'field': 'This Is A Weighted Item', 'hide': True, 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
     {'field': 'Tare', 'hide': True},
     {'field': 'Barcode', 'hide': True},
     {'field': 'Item Folder', 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
@@ -129,35 +129,40 @@ rows = []
 
 #------------------------Start of Page------------------------------------------------
 
-with ui.grid(columns=5): # Menu Item Input
-    it = ui.input(label="Item Name", value="SM", validation={'field required': lambda val: len(val) > 0})
+def run():
+    with ui.grid(columns=5): # Menu Item Input
+        it = ui.input(label="Item Name", value="SM", validation={'field required': lambda val: len(val) > 0})
 
-    ip = ui.number(label="Price", value = 1, validation={'field required': lambda val: val > -1})
+        ip = ui.number(label="Price", value = 1, validation={'field required': lambda val: val > -1})
 
-    fn = ui.input(label='Belongs to Item Folder')
+        fn = ui.input(label='Belongs to Item Folder')
 
-    ig = ui.input(label='Item Group', value="Coffee", validation={'field required': lambda val: len(val) > 0})
+        ig = ui.input(label='Item Group', value="Coffee", validation={'field required': lambda val: len(val) > 0})
 
-    ic = ui.input(label='Item Category', value="Drinks", validation={'field required': lambda val: len(val) > 0})
+        ic = ui.input(label='Item Category', value="Drinks", validation={'field required': lambda val: len(val) > 0})
 
 
 
-ui.button('Add row', icon='add', on_click=add)
-folder = ui.input(label='Folder Name', value="Hot Coffee")
-ui.button('Add folder', icon='add', on_click=output_folder)
+    ui.button('Add row', icon='add', on_click=lambda: add(grid, fn, it, ig, ic, ip))
+    folder = ui.input(label='Folder Name', value="Hot Coffee")
+    ui.button('Add folder', icon='add', on_click=lambda: output_folder(folder, grid))
 
-grid = ui.aggrid({
-    'columnDefs': columns,
-    'defaultColDef': {'wrapHeaderText': True,'autoHeaderHeight': True, 'editable': True},
-    'rowData': rows,
-    'stopEditingWhenCellsLoseFocus': True,
-    'rowSelection': {'mode': 'multiRow'},
-})
+    grid = ui.aggrid({
+        'columnDefs': columns,
+        'defaultColDef': {'wrapHeaderText': True,'autoHeaderHeight': True, 'editable': True},
+        'rowData': rows,
+        'stopEditingWhenCellsLoseFocus': True,
+        'rowSelection': {'mode': 'multiRow'},
+    })
 
-ui.upload(on_upload=lambda e: import_data(e), auto_upload=True)
-ui.button('Terminal print', on_click=show_items)
-ui.button('Show hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, True))
-ui.button('Hide hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, False))
-ui.button('Export to Excel', on_click=lambda e: export())
+    ui.upload(on_upload=lambda e: import_data(e, grid), auto_upload=True)
+    ui.button('Terminal print', on_click=lambda: show_items(grid))
+    ui.button('Show hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, True))
+    ui.button('Hide hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, False))
+    ui.button('Export to Excel', on_click=lambda: export(grid))
 
-ui.run()
+
+    
+    ui.run()
+
+run()
