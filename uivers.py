@@ -73,14 +73,19 @@ async def show_grid(grid):
 
 async def output_folder(folder, grid):
     rows = await grid.get_selected_rows()
+    
     if rows:
         for row in rows:
-            ui.notify(f"Selected row: {row['id']}")
-            grid.options["rowData"][row['id']]['Belongs To Item Folder'] = folder.value
+            await grid.run_row_method(row['id'], 'setDataValue', 'Belongs To Item Folder', folder.value, )
+            ui.notify(f"Selected row: {row['Menu Item Full Name']}")
+            
     else:
         ui.notify('No rows selected.')
-    
-    '''
+    await grid.run_grid_method('deselectAllFiltered')
+    await grid.run_grid_method('ensureIndexVisible', rows[0]['id'], 'top')
+
+  
+'''
     
     if rows:
         for row in rows:
@@ -171,7 +176,7 @@ def run():
 
     grid = ui.aggrid({
         'columnDefs': columns,
-        'defaultColDef': {'wrapHeaderText': True,'autoHeaderHeight': True, 'editable': True},
+        'defaultColDef': {'wrapHeaderText': True,'autoHeaderHeight': True, 'editable': True, 'enableCellChangeFlash': True},
         'rowData': rows,
         #'domLayout': 'autoHeight',
         'stopEditingWhenCellsLoseFocus': True,
