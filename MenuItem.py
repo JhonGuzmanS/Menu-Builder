@@ -7,7 +7,7 @@ class MenuItem:
             self.add_item(name_type, group, category, price, folder)
             
 
-    def add_item(self, name_type:str, group:str, category:str, price:int, folder_name:str, print_loc:str):
+    def add_item(self, name_type:str, group:str, category:str, price:int, folder_name:str, print_loc:str, tax1:bool=False):
         item = {
             'id' : self.count,
             'Menu Item Full Name': name_type,
@@ -21,7 +21,7 @@ class MenuItem:
             'Delivery Price': None,
             'Open Price Item': None,
             'POS Orders Print At': print_loc,
-            'Tax 1': False,
+            'Tax 1': tax1,
             'Tax 2': False,
             'Tax 3': False,
             'This Is A Bar Item': False,

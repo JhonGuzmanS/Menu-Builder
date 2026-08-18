@@ -8,17 +8,18 @@ from datetime import datetime
 
 #------------------------Start of Functions------------------------------------------------
 
-def add_row(fn, it, ig, ic, ip):
+def add_row(fn, it, ig, ic, ip, tax, prints):
     #ui.label(f"Added: {fn.value + '-' + it.value} | {ip.value} | {fn.value} | {ig.value} | {ic.value}").update()
     if len(fn.value) > 0:
-        table_l.add_item(fn.value + ' ' + it.value, ig.value, ic.value, ip.value, fn.value, print_loc='N')
+        table_l.add_item(fn.value + ' ' + it.value, ig.value, ic.value, ip.value, fn.value, prints, tax)
     else:
-        table_l.add_item(it.value, ig.value, ic.value, ip.value, fn.value, print_loc='N')
+        table_l.add_item(it.value, ig.value, ic.value, ip.value, fn.value, prints, tax)
     
 
 # include limit of 32 per unique group / POS default menu setup
-def add(grid,fn, it, ig, ic, ip):
-    add_row(fn, it, ig, ic, ip)
+def add(grid,fn, it, ig, ic, ip, tax, prints):
+    print('-----------------------------------------', tax, prints)
+    add_row(fn, it, ig, ic, ip, tax,prints)
     row = table_l.holder[-1]
     with grid.props.suspend_updates():
         grid.options['rowData'].append(row)
@@ -130,36 +131,56 @@ rows = []
 #------------------------Start of Page------------------------------------------------
 
 def run():
-    with ui.grid(columns=5): # Menu Item Input
-        it = ui.input(label="Item Name", value="SM", validation={'field required': lambda val: len(val) > 0})
+    
+    with ui.tabs().classes('editor') as tabs:
+        one = ui.tab('Export / Import Menu Items')
+        two = ui.tab('Add Menu Item')
+        three = ui.tab('Append to Item Folder')
 
-        ip = ui.number(label="Price", value = 1, validation={'field required': lambda val: val > -1})
+    with ui.tab_panels(tabs, value=one).classes('editor'):
+        with ui.tab_panel('Export / Import Menu Items'):
+            ui.upload(on_upload=lambda e: import_data(e, grid), auto_upload=True)
+            ui.button('Export to Excel', on_click=lambda: export(grid))
 
-        fn = ui.input(label='Belongs to Item Folder')
+        with ui.tab_panel('Add Menu Item'):
+            ui.label('Add Menu Item to the list')
+            with ui.grid(columns=7): # Menu Item Input
+                    name = ui.input(label="Item Name", value="SM", validation={'field required': lambda val: len(val) > 0})            
+                    price = ui.number(label="Price", value = 1, validation={'field required': lambda val: val > -1})            
+                    folder_name = ui.input(label='Belongs to Item Folder')
+                    group = ui.input(label='Item Group', value="Coffee", validation={'field required': lambda val: len(val) > 0})
+                    categ = ui.input(label='Item Category', value="Drinks", validation={'field required': lambda val: len(val) > 0})
+                    tax = ui.checkbox(text='Tax 1', value=True)
+                    prints = ui.select(label='Printer location',value='N', options=printer_options)
+                    ui.button('Add to Table', icon='add', on_click=lambda: add(grid, folder_name, name, group, categ, price, tax.value, prints.value))
 
-        ig = ui.input(label='Item Group', value="Coffee", validation={'field required': lambda val: len(val) > 0})
+        with ui.tab_panel('Append to Item Folder'):
+            ui.label('Append selected Menu Items to the specified Item Folder')
+            with ui.grid(columns=1):
+                folder = ui.input(label='Menu Item Folder Name', value="Hot Coffee")        
+                ui.button('Update Table', icon='add', on_click=lambda: output_folder(folder, grid))
 
-        ic = ui.input(label='Item Category', value="Drinks", validation={'field required': lambda val: len(val) > 0})
+       
 
 
+    with ui.row():
+        ui.button('Show hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, True))
+        ui.button('Hide hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, False))
 
-    ui.button('Add row', icon='add', on_click=lambda: add(grid, fn, it, ig, ic, ip))
-    folder = ui.input(label='Folder Name', value="Hot Coffee")
-    ui.button('Add folder', icon='add', on_click=lambda: output_folder(folder, grid))
+    # Grid setup
 
     grid = ui.aggrid({
         'columnDefs': columns,
         'defaultColDef': {'wrapHeaderText': True,'autoHeaderHeight': True, 'editable': True},
         'rowData': rows,
+        #'domLayout': 'autoHeight',
         'stopEditingWhenCellsLoseFocus': True,
         'rowSelection': {'mode': 'multiRow'},
-    })
+    }).style('height: 500px; width: 100%;')
 
-    ui.upload(on_upload=lambda e: import_data(e, grid), auto_upload=True)
-    ui.button('Terminal print', on_click=lambda: show_items(grid))
-    ui.button('Show hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, True))
-    ui.button('Hide hidden', on_click=lambda: grid.run_grid_method('setColumnsVisible', hiddenHeaders, False))
-    ui.button('Export to Excel', on_click=lambda: export(grid))
+    
+    #ui.button('Terminal print', on_click=lambda: show_items(grid))
+    
 
 
     
