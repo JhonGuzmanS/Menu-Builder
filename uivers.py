@@ -122,7 +122,7 @@ columns = [
     {'field': 'Tare', 'hide': True},
     {'field': 'Barcode', 'hide': True},
     {'field': 'Item Folder', 'cellRenderer': 'agCheckboxCellRenderer', 'cellEditor': 'agCheckboxCellEditor',},
-    {'field': 'Belongs To Item Folder',},
+    {'field': 'Belongs To Item Folder','headerName': 'Item Folder Name'},
 ]
 
 headerName = [x['field'] for x in columns]
